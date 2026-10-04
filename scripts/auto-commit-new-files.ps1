@@ -13,8 +13,12 @@ $watcher.NotifyFilter = [System.IO.NotifyFilters]::FileName -bor [System.IO.Noti
 $watcher.InternalBufferSize = 65536
 $watcher.EnableRaisingEvents = $true
 
-$createdSubscription = Register-ObjectEvent -InputObject $watcher -EventName Created -SourceIdentifier "AutoCommitNewFileCreated"
-$renamedSubscription = Register-ObjectEvent -InputObject $watcher -EventName Renamed -SourceIdentifier "AutoCommitNewFileRenamed"
+$createdSourceIdentifier = "AutoCommitNewFileCreated"
+$changedSourceIdentifier = "AutoCommitNewFileChanged"
+$renamedSourceIdentifier = "AutoCommitNewFileRenamed"
+Register-ObjectEvent -InputObject $watcher -EventName Created -SourceIdentifier $createdSourceIdentifier | Out-Null
+Register-ObjectEvent -InputObject $watcher -EventName Changed -SourceIdentifier $changedSourceIdentifier | Out-Null
+Register-ObjectEvent -InputObject $watcher -EventName Renamed -SourceIdentifier $renamedSourceIdentifier | Out-Null
 
 Write-Host "Memantau file baru di $repoRoot. Tekan Ctrl+C untuk berhenti."
 
@@ -28,7 +32,12 @@ try {
         $eventPath = $event.SourceEventArgs.FullPath
         Remove-Event -EventIdentifier $event.EventIdentifier
 
-        if (-not (Test-Path -LiteralPath $eventPath -PathType Leaf)) {
+        $relativePath = $eventPath.Substring($repoRoot.Length).TrimStart('\', '/') -replace '\\', '/'
+        if ($relativePath -match '(^|/)\.git(/|$)') {
+            continue
+        }
+
+        if (-not (Test-Path -LiteralPath $eventPath -PathType Leaf -ErrorAction SilentlyContinue)) {
             continue
         }
 
@@ -36,7 +45,7 @@ try {
         $previousLength = -1
         $previousWriteTime = [DateTime]::MinValue
         for ($attempt = 0; $attempt -lt 60 -and $stableChecks -lt 3; $attempt++) {
-            if (-not (Test-Path -LiteralPath $eventPath -PathType Leaf)) {
+            if (-not (Test-Path -LiteralPath $eventPath -PathType Leaf -ErrorAction SilentlyContinue)) {
                 break
             }
 
@@ -55,11 +64,15 @@ try {
             [System.Threading.Thread]::Sleep(500)
         }
 
-        if ($stableChecks -lt 3 -or -not (Test-Path -LiteralPath $eventPath -PathType Leaf)) {
+        if ($stableChecks -lt 3 -or -not (Test-Path -LiteralPath $eventPath -PathType Leaf -ErrorAction SilentlyContinue)) {
             continue
         }
 
-        $relativePath = $eventPath.Substring($repoRoot.Length).TrimStart('\', '/') -replace '\\', '/'
+        $file = Get-Item -LiteralPath $eventPath -ErrorAction SilentlyContinue
+        if ($null -eq $file -or $file.Length -eq 0) {
+            continue
+        }
+
         if ($relativePath -match '(^|/)(\.env($|\.)|.*\.(pem|key|p12|pfx|jks|keystore|sqlite|db|dump|bak)$|secrets?(/|$)|credentials?(/|$))') {
             Write-Host "Lewati file sensitif: $relativePath"
             continue
@@ -95,7 +108,8 @@ try {
         }
     }
 } finally {
-    Unregister-Event -SourceIdentifier $createdSubscription.Name -ErrorAction SilentlyContinue
-    Unregister-Event -SourceIdentifier $renamedSubscription.Name -ErrorAction SilentlyContinue
+    Unregister-Event -SourceIdentifier $createdSourceIdentifier -ErrorAction SilentlyContinue
+    Unregister-Event -SourceIdentifier $changedSourceIdentifier -ErrorAction SilentlyContinue
+    Unregister-Event -SourceIdentifier $renamedSourceIdentifier -ErrorAction SilentlyContinue
     $watcher.Dispose()
 }
