@@ -2,14 +2,18 @@ package service
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte("vehicle-rental-secret-key")
-
 func GenerateAccessToken(userID int, username string, role string) (string, error) {
+	secret, err := loadJWTSecret()
+	if err != nil {
+		return "", err
+	}
+
 	claims := jwt.MapClaims{
 		"user_id":  userID,
 		"username": username,
@@ -23,7 +27,7 @@ func GenerateAccessToken(userID int, username string, role string) (string, erro
 		claims,
 	)
 
-	tokenString, err := token.SignedString(jwtSecret)
+	tokenString, err := token.SignedString(secret)
 	if err != nil {
 		return "", fmt.Errorf("gagal membuat access token: %w", err)
 	}
@@ -32,6 +36,11 @@ func GenerateAccessToken(userID int, username string, role string) (string, erro
 }
 
 func ValidateAccessToken(tokenString string) (jwt.MapClaims, error) {
+	secret, err := loadJWTSecret()
+	if err != nil {
+		return nil, err
+	}
+
 	token, err := jwt.Parse(
 		tokenString,
 		func(token *jwt.Token) (interface{}, error) {
@@ -39,7 +48,7 @@ func ValidateAccessToken(tokenString string) (jwt.MapClaims, error) {
 				return nil, fmt.Errorf("algoritma token tidak valid")
 			}
 
-			return jwtSecret, nil
+			return secret, nil
 		},
 	)
 
@@ -57,4 +66,13 @@ func ValidateAccessToken(tokenString string) (jwt.MapClaims, error) {
 	}
 
 	return claims, nil
+}
+
+func loadJWTSecret() ([]byte, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		return nil, fmt.Errorf("JWT_SECRET belum diatur")
+	}
+
+	return []byte(secret), nil
 }

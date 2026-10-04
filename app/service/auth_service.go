@@ -58,26 +58,35 @@ func (s *AuthService) Register(ctx context.Context, request *model.RegisterReque
 	return user, nil
 }
 
-func (s *AuthService) Login(ctx context.Context, request *model.LoginRequest) (*model.User, error) {
+func (s *AuthService) Login(ctx context.Context, request *model.LoginRequest) (*model.User, string, error) {
 	if err := ValidateLogin(request.Username, request.Password); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	username := strings.TrimSpace(request.Username)
 
 	user, err := s.userRepository.FindByUsername(ctx, username)
 	if err != nil {
-		return nil, fmt.Errorf("username atau password salah")
+		return nil, "", fmt.Errorf("username atau password salah")
 	}
 
 	if err := bcrypt.CompareHashAndPassword(
 		[]byte(user.Password),
 		[]byte(request.Password),
 	); err != nil {
-		return nil, fmt.Errorf("username atau password salah")
+		return nil, "", fmt.Errorf("username atau password salah")
+	}
+
+	accessToken, err := GenerateAccessToken(
+		user.ID,
+		user.Username,
+		user.Role,
+	)
+	if err != nil {
+		return nil, "", err
 	}
 
 	user.Password = ""
 
-	return user, nil
+	return user, accessToken, nil
 }

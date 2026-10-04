@@ -21,6 +21,15 @@ func main() {
 
 	api := app.Group("/api/v1")
 
+	userrepository := repository.NewUserRepository(config.DB)
+
+	authservice := service.NewAuthService(userrepository)
+
+	authhandler := handler.NewAuthHandler(authservice)
+
+	route.AuthRoutes(api, authhandler)
+
+/////vehicle
 	vehclerepository := repository.NewVehicleRepository(config.DB)
 
 	vehicleservice := service.NewVehicleService(vehclerepository)
@@ -29,7 +38,7 @@ func main() {
 
 	route.VehicleRoutes(api, vehiclehandler)
 
-
+/////category
 	categoryrepository := repository.NewVehicleCategoryRepository(config.DB)
 
 	categoryservice := service.NewVehicleCategoryService(categoryrepository)
