@@ -29,6 +29,15 @@ func main() {
 
 	route.VehicleRoutes(api, vehiclehandler)
 
+
+	categoryrepository := repository.NewVehicleCategoryRepository(config.DB)
+
+	categoryservice := service.NewVehicleCategoryService(categoryrepository)
+
+	categoryhandler := handler.NewVehicleCategoryHandler(categoryservice)
+
+	route.VehicleCategoryRoutes(api, categoryhandler)
+
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"message": "Vehicle Rental API berjalan",
