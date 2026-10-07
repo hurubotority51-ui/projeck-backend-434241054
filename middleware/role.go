@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func RoleMiddleware(allowedRoles ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		claims, ok := c.Locals("claims").(map[string]interface{})
+
+		claims, ok := c.Locals("claims").(jwt.MapClaims)
 		if !ok {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
